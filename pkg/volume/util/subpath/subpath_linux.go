@@ -293,7 +293,7 @@ func doCleanSubPath(mounter mount.Interface, fullContainerDirPath, subPathIndex 
 	klog.V(4).Infof("Cleaning up subpath mounts for subpath %v", subPathIndex)
 	fullSubPath := filepath.Join(fullContainerDirPath, subPathIndex)
 
-	if err := mount.CleanupMountPoint(fullSubPath, mounter, true); err != nil {
+	if err := mount.CleanupSubPathMountPoint(fullSubPath, mounter, true); err != nil {
 		return fmt.Errorf("error cleaning subpath mount %s: %s", fullSubPath, err)
 	}
 

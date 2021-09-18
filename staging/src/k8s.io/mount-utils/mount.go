@@ -21,6 +21,7 @@ package mount
 
 import (
 	"fmt"
+	"io/ioutil"
 	"os"
 	"path/filepath"
 	"strings"
@@ -219,6 +220,64 @@ func GetDeviceNameFromMount(mounter Interface, mountPath string) (string, int, e
 // IsNotMountPoint enumerates all the mountpoints using List() and
 // the list of mountpoints may be large, then it uses
 // isMountPointMatch to evaluate whether the directory is a mountpoint.
+func IsNotSubPathMountPoint(mounter Interface, file string) (bool, error) {
+	// IsLikelyNotMountPoint provides a quick check
+	// to determine whether file IS A mountpoint.
+	notMnt, notMntErr := mounter.IsLikelyNotMountPoint(file)
+	if notMntErr != nil && os.IsPermission(notMntErr) {
+		// We were not allowed to do the simple stat() check, e.g. on NFS with
+		// root_squash. Fall back to /proc/mounts check below.
+		notMnt = true
+		notMntErr = nil
+	}
+	if notMntErr != nil {
+		return notMnt, notMntErr
+	}
+	// identified as mountpoint, so return this fact.
+	if notMnt == false {
+		return notMnt, nil
+	}
+
+	// Resolve any symlinks in file, kernel would do the same and use the resolved path in /proc/mounts.
+	resolvedFile, err := filepath.EvalSymlinks(file)
+	if err != nil {
+		return true, err
+	}
+
+	// check all mountpoints since IsLikelyNotMountPoint
+	// is not reliable for some mountpoint types.
+	realSubPath, err  := IsRealSubPathBindMount("/proc/mounts", resolvedFile)
+	return !realSubPath, err
+}
+
+// IsRealSubPathBindMount is shared with NsEnterMounter
+func IsRealSubPathBindMount(mountFilePath string, mountPointPath string) (bool, error) {
+	for i := 0; i < 3; i++ {
+		contents, err := ioutil.ReadFile(mountFilePath)
+		if err != nil {
+			return false, err
+		}
+		mountPoints, err := parseProcMounts(contents)
+		if err != nil {
+			return false, err
+		}
+		for _, mp := range mountPoints {
+			if isMountPointMatch(mp, mountPointPath) {
+				return false, nil
+			}
+		}
+	}
+	return false, nil
+}
+
+
+// IsNotMountPoint determines if a directory is a mountpoint.
+// It should return ErrNotExist when the directory does not exist.
+// IsNotMountPoint is more expensive than IsLikelyNotMountPoint.
+// IsNotMountPoint detects bind mounts in linux.
+// IsNotMountPoint enumerates all the mountpoints using List() and
+// the list of mountpoints may be large, then it uses
+// isMountPointMatch to evaluate whether the directory is a mountpoint.
 func IsNotMountPoint(mounter Interface, file string) (bool, error) {
 	// IsLikelyNotMountPoint provides a quick check
 	// to determine whether file IS A mountpoint.
@@ -257,6 +316,7 @@ func IsNotMountPoint(mounter Interface, file string) (bool, error) {
 	}
 	return notMnt, nil
 }
+
 
 // MakeBindOpts detects whether a bind mount is being requested and makes the remount options to
 // use in case of bind mount, due to the fact that bind mount doesn't respect mount options.
