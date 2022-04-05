@@ -22,6 +22,7 @@ package mount
 import (
 	"context"
 	"fmt"
+	"github.com/moby/sys/mountinfo"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -635,6 +636,47 @@ func SearchMountPoints(hostSource, mountInfoPath string) ([]string, error) {
 	}
 
 	return refs, nil
+}
+
+// IsNotMountPoint determines if a directory is a mountpoint.
+// It should return ErrNotExist when the directory does not exist.
+// IsNotMountPoint is more expensive than IsLikelyNotMountPoint.
+// IsNotMountPoint detects bind mounts in linux.
+// IsNotMountPoint enumerates all the mountpoints using List() and
+// the list of mountpoints may be large, then it uses
+// isMountPointMatch to evaluate whether the directory is a mountpoint.
+func IsNotMountPoint(mounter Interface, file string) (bool, error) {
+	isMnt, sure, isMntErr := mountinfo.MountedFast(file)
+	notMnt := !isMnt
+	if sure == true && isMntErr == nil {
+		return !isMnt, nil
+	}
+	if isMntErr != nil && os.IsPermission(isMntErr) {
+		notMnt = true
+		isMntErr = nil
+	}
+	if isMntErr != nil {
+		return notMnt, isMntErr
+	}
+	// Resolve any symlinks in file, kernel would do the same and use the resolved path in /proc/mounts.
+	resolvedFile, err := filepath.EvalSymlinks(file)
+	if err != nil {
+		return false, err
+	}
+
+	// check all mountpoints since MountedFast is not sure.
+	// is not reliable for some mountpoint types.
+	mountPoints, mountPointsErr := mounter.List()
+	if mountPointsErr != nil {
+		return notMnt, mountPointsErr
+	}
+	for _, mp := range mountPoints {
+		if isMountPointMatch(mp, resolvedFile) {
+			notMnt = false
+			break
+		}
+	}
+	return notMnt, nil
 }
 
 // tryUnmount calls plain "umount" and waits for unmountTimeout for it to finish.
