@@ -213,7 +213,34 @@ func (f *FakeMounter) IsLikelyNotMountPoint(file string) (bool, error) {
 }
 
 func (f *FakeMounter) IsNotMountPoint(file string) (bool, error) {
-	return false, nil
+
+	f.mutex.Lock()
+	defer f.mutex.Unlock()
+
+	err := f.MountCheckErrors[file]
+	if err != nil {
+		return false, err
+	}
+
+	_, err = os.Stat(file)
+	if err != nil {
+		return true, err
+	}
+
+	// If file is a symlink, get its absolute path
+	absFile, err := filepath.EvalSymlinks(file)
+	if err != nil {
+		absFile = file
+	}
+
+	for _, mp := range f.MountPoints {
+		if mp.Path == absFile {
+			klog.V(5).Infof("isLikelyNotMountPoint for %s: mounted %s, false", file, mp.Path)
+			return false, nil
+		}
+	}
+	klog.V(5).Infof("isLikelyNotMountPoint for %s: true", file)
+	return true, nil
 }
 
 // GetMountRefs finds all mount references to the path, returns a
