@@ -65,6 +65,14 @@ type Interface interface {
 	// care about such situations, this is a faster alternative to calling List()
 	// and scanning that output.
 	IsLikelyNotMountPoint(file string) (bool, error)
+	// IsNotMountPoint determines if a directory is a mountpoint.
+	// It should return ErrNotExist when the directory does not exist.
+	// IsNotMountPoint is more expensive than IsLikelyNotMountPoint.
+	// IsNotMountPoint detects bind mounts in linux.
+	// IsNotMountPoint enumerates all the mountpoints using List() and
+	// the list of mountpoints may be large, then it uses
+	// isMountPointMatch to evaluate whether the directory is a mountpoint.
+	IsNotMountPoint(file string) (bool, error)
 	// GetMountRefs finds all mount references to pathname, returning a slice of
 	// paths. Pathname can be a mountpoint path or a normal	directory
 	// (for bind mount). On Linux, pathname is excluded from the slice.

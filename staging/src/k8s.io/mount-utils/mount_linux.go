@@ -645,7 +645,7 @@ func SearchMountPoints(hostSource, mountInfoPath string) ([]string, error) {
 // IsNotMountPoint enumerates all the mountpoints using List() and
 // the list of mountpoints may be large, then it uses
 // isMountPointMatch to evaluate whether the directory is a mountpoint.
-func IsNotMountPoint(mounter Interface, file string) (bool, error) {
+func (mounter *Mounter) IsNotMountPoint(file string) (bool, error) {
 	isMnt, sure, isMntErr := mountinfo.MountedFast(file)
 	notMnt := !isMnt
 	if sure == true && isMntErr == nil {

@@ -222,7 +222,7 @@ func (nfsMounter *nfsMounter) SetUp(mounterArgs volume.MounterArgs) error {
 }
 
 func (nfsMounter *nfsMounter) SetUpAt(dir string, mounterArgs volume.MounterArgs) error {
-	notMnt, err := mount.IsNotMountPoint(nfsMounter.mounter, dir)
+	notMnt, err := nfsMounter.mounter.IsNotMountPoint(dir)
 	klog.V(4).Infof("NFS mount set up: %s %v %v", dir, !notMnt, err)
 	if err != nil && !os.IsNotExist(err) {
 		return err
@@ -241,7 +241,7 @@ func (nfsMounter *nfsMounter) SetUpAt(dir string, mounterArgs volume.MounterArgs
 	mountOptions := util.JoinMountOptions(nfsMounter.mountOptions, options)
 	err = nfsMounter.mounter.MountSensitiveWithoutSystemd(source, dir, "nfs", mountOptions, nil)
 	if err != nil {
-		notMnt, mntErr := mount.IsNotMountPoint(nfsMounter.mounter, dir)
+		notMnt, mntErr := nfsMounter.mounter.IsNotMountPoint(dir)
 		if mntErr != nil {
 			klog.Errorf("IsNotMountPoint check failed: %v", mntErr)
 			return err
@@ -251,7 +251,7 @@ func (nfsMounter *nfsMounter) SetUpAt(dir string, mounterArgs volume.MounterArgs
 				klog.Errorf("Failed to unmount: %v", mntErr)
 				return err
 			}
-			notMnt, mntErr := mount.IsNotMountPoint(nfsMounter.mounter, dir)
+			notMnt, mntErr := nfsMounter.mounter.IsNotMountPoint(dir)
 			if mntErr != nil {
 				klog.Errorf("IsNotMountPoint check failed: %v", mntErr)
 				return err
